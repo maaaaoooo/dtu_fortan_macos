@@ -6,28 +6,9 @@
             "type": "shell",
             "command": "gfortran",
             //TODO: remove the args code here
-            "args": [
-                "hello.f90",
-                "-o",
-                "hello_program",
-                "&&",
-                "./hello_program"
-            ],
             //TODO: uncomment the code below! This is the structure for the code given in 2023.
-            // "args": [
-            //     "-o",
-            //     "main_program",
-            //     "types.f90",
-            //     "processor.f90",
-            //     "numeth.f90",
-            //     "link1.f90",
-            //     "plane42rect.f90",
-            //     "fedata.f90",
-            //     "fea.f90",
-            //     "main.f90",
-            //     "&&",
-            //     "./main_program",
-            // ],
+             "args": ["hello.f90", "-o", "hello_program", "&&", "./hello_program"
+             ],
             "options": {
                 "cwd": "${workspaceFolder}/Day5basisCode"
             },
