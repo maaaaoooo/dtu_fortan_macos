@@ -221,30 +221,31 @@ contains
         nface = 0
         f = 0
         if (eface == 1) then
+            f = [0.0_wp, fe]
             nface(1,1) = aa
             nface(1,3) = aa
             nface(2,2) = aa
             nface(2,4) = aa
         elseif (eface == 2) then
+            f = [-fe, 0.0_wp]
             nface(1,3) = bb
             nface(1,5) = bb
             nface(2,4) = bb
             nface(2,6) = bb
         elseif (eface == 3) then
+            f = [0.0_wp, -fe]
             nface(1,5) = aa
             nface(1,7) = aa
             nface(2,6) = aa
             nface(2,8) = aa
         elseif (eface == 4) then
+            f = [fe, 0.0_wp]
             nface(1,1) = bb
             nface(1,7) = bb
             nface(2,2) = bb
             nface(2,8) = bb
         endif
         re = matmul(transpose(nface), f) * thk
-        print *, 'ERROR in plane42rect/plane42rect_re'
-        print *, 'subroutine incomplete -- you need to add some code in this subroutine'
-        stop
     end subroutine plane42rect_re
 !
 !--------------------------------------------------------------------------------------------------
@@ -278,23 +279,44 @@ contains
             !! * `estrain(1)` = \(\epsilon_{11}\)
             !! * `estrain(2)` = \(\epsilon_{22}\)
             !! * `estrain(3)` = \(\epsilon_{12}\)
+
+        ! New variables
         real(wp) :: bmat(3, 8), cmat(3, 3) 
+        real(wp) :: aa, bb, dndx(4), dndy(4), fact
+        integer :: i
 
         ! Build strain-displacement matrix
+
+        aa = (xe(3)-xe(1))/2
+        bb = (xe(8)-xe(2))/2
+        dndx = [-1.0_wp, 1.0_wp, 1.0_wp, -1.0_wp]/(4*aa)
+        dndy = [-1.0_wp, -1.0_wp, 1.0_wp, 1.0_wp]/(4*bb)
+
         bmat = 0
+        do i = 1, 4
+            bmat(1,2*i-1) = dndx(i)
+            bmat(2,2*i) = dndy(i)
+            bmat(3,2*i-1) = dndy(i)
+            bmat(3,2*i) = dndx(i)
+        end do
 
         ! Compute element strain
         estrain = matmul(bmat, de)
 
         ! Build constitutive matrix (plane stress)
         cmat = 0
+        fact = young/(1.0_wp-nu**2)
+        cmat(1,1) = fact
+        cmat(1,2) = fact*nu
+        cmat(2,1) = fact*nu
+        cmat(2,2) = fact
+        cmat(3,3) = fact*(1.0_wp-nu)/2
 
         ! Compute element stress
         estress = matmul(cmat, estrain)
 
         ! Compute principal stress and direction
-        print *, 'WARNING in plane42rect/plane42rect_ss: subroutine incomplete -- you need to' &
-            // 'add some code in this subroutine'
+        ! oppgave 6 (tror jeg)
     end subroutine plane42rect_ss
 
 end module plane42rect
