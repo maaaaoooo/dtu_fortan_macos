@@ -101,16 +101,16 @@
 ! end program
 
 
-program MainProgram
- use AddModule
- implicit none
- integer :: b = 2
- print*, 'b = ', b
- call Sub(b)
- print*, 'b = ', b
- call Sub(b)
- print*, 'b = ', b
-end program
+! program MainProgram
+!  use AddModule
+!  implicit none
+!  integer :: b = 2
+!  print*, 'b = ', b
+!  call Sub(b)
+!  print*, 'b = ', b
+!  call Sub(b)
+!  print*, 'b = ', b
+! end program
 
 !program MainProgram
 !  use ArrayModule
@@ -125,3 +125,10 @@ end program
 !  call subNice(A)
 !end program
 
+! program MainProgram
+!     integer :: a = 2
+!     integer :: b = 3
+!     print*, 'a = ', a
+!     print*, 'b = ', b
+!     print*, 'a * b = ', a*b
+! end program
