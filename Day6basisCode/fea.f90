@@ -21,21 +21,33 @@ contains
         use plane42rect
 
 ! Hint for continuum elements:
-!        integer, parameter :: mdim = 8
-!        integer, dimension(mdim) :: edof
+        !integer, parameter :: mdim = 8
+        integer, dimension(mdim) :: edof
+        integer :: e, i, nen
 
         ! This subroutine computes the number of global equation,
         ! half bandwidth, etc and allocates global arrays.
 
         ! Calculate number of equations
         neqn = 2*nn
-
+    
         if (.not. banded) then
             allocate (kmat(neqn, neqn))
         else
-            print *, 'ERROR in fea/initial'
-            print *, 'Band form not implemented -- you need to add your own code here'
-            stop
+            ! Making sure bw = 0
+            bw = 0
+            ! Looping through the different elements
+            do e = 1, ne
+            nen = element(e)%numnode
+                ! Picking out the different edofs
+                do i = 1, nen
+                    edof(2*i-1) = 2 * element(e)%ix(i) - 1
+                    edof(2*i)   = 2 * element(e)%ix(i)
+                end do
+                ! Updating bw if the bandwith of the element is bigger than the previous ones
+                bw = max(bw, (maxval(edof(1:2*nen)) - minval(edof(1:2*nen)) + 1))
+            end do
+            allocate (kmat(bw, neqn))
         end if
         allocate (p(neqn), d(neqn))
         allocate (strain(ne, 3), stress(ne, 3))
@@ -73,9 +85,10 @@ contains
             ! Solve for displacement vector
             call solve(kmat, p)
         else
-            print *, 'ERROR in fea/displ'
-            print *, 'Band form not implemented -- you need to add your own code here'
-            stop
+            ! Factor banded stiffness matrix
+            call bfactor(kmat)
+            ! Solve for displacement vector
+            call bsolve(kmat, p)
         end if
 
         ! Transfer results
@@ -177,13 +190,12 @@ contains
         real(wp) :: nu, dens, thk
 
         ! Reset stiffness matrix
-        if (.not. banded) then
-            kmat = 0
-        else
-            print*,'ERROR in fea/buildstiff'
-            print*,'Band form not implemented -- you need to add your own code here'
-            stop
-        end if
+        kmat = 0
+        !if (.not. banded) then
+        !    kmat = 0
+        !else
+        !    kmat = 0
+        !end if
 
         do e = 1, ne
 
@@ -218,10 +230,14 @@ contains
                 end do
 ! Hint: Can you eliminate the loops above by using a different Fortran array syntax?
             else
-                print *, 'ERROR in fea/buildstiff'
-                print *, 'Band form not implemented -- you need to add our own code here'
-                stop
-            end if
+                do i = 1, 2*nen
+                    do j = 1, 2*nen
+                    if (edof(j) >= edof(i)) then
+                        kmat(edof(j)-edof(i)+1, edof(i)) = kmat(edof(j)-edof(i)+1, edof(i)) + ke(i, j)
+                    end if
+                    end do
+                end do
+            end if  
         end do
     end subroutine buildstiff
 !
@@ -233,19 +249,19 @@ contains
 
         use fedata
 
-        integer :: i, idof
+        integer :: i, idof, k, r
         real(wp) :: penal
 
         ! Correct for supports
         if (.not. banded) then
-            if (.not. penalty) then
-                do i = 1, nb
-                    idof = int(2*(bound(i,1)-1) + bound(i,2))
-                    p(1:neqn) = p(1:neqn) - kmat(1:neqn, idof) * bound(i, 3)
-                    p(idof) = bound(i, 3)
-                    kmat(1:neqn, idof) = 0
-                    kmat(idof, 1:neqn) = 0
-                    kmat(idof, idof) = 1
+                if (.not. penalty) then
+                    do i = 1, nb
+                        idof = int(2*(bound(i,1)-1) + bound(i,2))
+                        p(1:neqn) = p(1:neqn) - kmat(1:neqn, idof) * bound(i, 3)
+                        p(idof) = bound(i, 3)
+                        kmat(1:neqn, idof) = 0
+                        kmat(idof, 1:neqn) = 0
+                        kmat(idof, idof) = 1
                 end do
             else
                 penal = penalty_fac*maxval(kmat)
@@ -256,9 +272,31 @@ contains
                 end do
             end if
         else
-            print *, 'ERROR in fea/enforce'
-            print *, 'Band form not implemented -- you need to add your own code here'
-            stop
+            if (.not. penalty) then
+                do i = 1, nb
+                    idof = int(2*(bound(i,1)-1) + bound(i,2))
+
+                    do k = (idof-min(idof-1, bw-1)), (idof-1)
+                        P(k) = P(k) - kmat(idof+1-k, k) * bound(i, 3)
+                        kmat(idof+1-k, k) = 0
+                    end do
+                    
+                    do r = 2, min(bw, neqn - idof + 1)
+                        P(idof+r-1) = P(idof+r-1) - kmat(r, idof) * bound(i, 3)
+                        kmat(r, idof) = 0
+                    end do
+
+                    p(idof) = bound(i, 3)
+                    kmat(1, idof) = 1
+                end do
+            else
+                penal = penalty_fac*maxval(kmat)
+                do i = 1, nb
+                    idof = int(2*(bound(i,1)-1) + bound(i,2))
+                    kmat(1, idof) = kmat(1, idof) + penal
+                    p(idof) = penal * bound(i, 3)
+                end do
+            end if
         end if
     end subroutine enforce
 !
