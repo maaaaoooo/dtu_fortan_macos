@@ -5,7 +5,7 @@ module fea
     implicit none
     save
     private
-    public :: displ, initial, buildload, buildstiff, enforce, recover
+    public :: displ, initial, buildload, buildstiff, enforce, recover, compliance
 
 contains
 
@@ -30,7 +30,7 @@ contains
 
         ! Calculate number of equations
         neqn = 2*nn
-    
+
         if (.not. banded) then
             allocate (kmat(neqn, neqn))
         else
@@ -51,10 +51,12 @@ contains
         end if
         allocate (p(neqn), d(neqn))
         allocate (strain(ne, 3), stress(ne, 3))
+        allocate (stress_eq(ne, 4))
 
         ! Initial stress and strain
         strain = 0
         stress = 0
+        stress_eq = 0
     end subroutine initial
 !
 !--------------------------------------------------------------------------------------------------
@@ -112,9 +114,29 @@ contains
                 plotval(e) = stress(e,3)
             end if
         end do
-        call plotmatlabeval('Stresses',plotval)
+        call plotmatlabeval('Shear stress',plotval)
+        call plotmatlabeval('von Mises', stress_eq(:, 1))
+        call plotmatlabevec('Principal stresses', stress_eq(:, 2), stress_eq(:, 3), stress_eq(:, 4))
 
     end subroutine displ
+
+!
+!--------------------------------------------------------------------------------------------------
+!
+    subroutine compliance
+
+        !! This subroutine calculates compliance
+
+        use fedata
+
+        real(wp) :: c
+
+        c = dot_product(p, d)
+        write (*, '("Compliance C = p^T d = ", es15.8)') c        
+
+    end subroutine compliance
+
+
 !
 !--------------------------------------------------------------------------------------------------
 !
@@ -317,7 +339,7 @@ contains
         real(wp), dimension(mdim, mdim) :: ke
         real(wp) :: young, area
 ! Hint for continuum elements:
-        real(wp):: nu, dens, thk
+        real(wp):: nu, dens, thk, sigma_vm, sigma_1, sigma_2, psi
         real(wp), dimension(3) :: estrain, estress
 
         ! Reset force vector
@@ -346,15 +368,25 @@ contains
                 call link1_ss(xe, de, young, estress, estrain)
                 stress(e, 1:3) = estress
                 strain(e, 1:3) = estrain
-            case( 2 )
-                young = mprop(element(e)%mat)%young
-                nu = mprop(element(e)%mat)%nu
-                thk = mprop(element(e)%mat)%thk
-                call plane42rect_ke(xe, young, nu, thk, ke)
-                p(edof(1:2*nen)) = p(edof(1:2*nen)) + matmul(ke(1:2*nen,1:2*nen), de(1:2*nen))
-                call plane42rect_ss(xe, de, young, nu, estress, estrain)
-                stress(e, 1:3) = estress
-                strain(e, 1:3) = estrain
+                case( 2 )
+                    young = mprop(element(e)%mat)%young
+                    nu = mprop(element(e)%mat)%nu
+                    thk = mprop(element(e)%mat)%thk
+                    call plane42rect_ke(xe, young, nu, thk, ke)
+                    p(edof(1:2*nen)) = p(edof(1:2*nen)) + matmul(ke(1:2*nen,1:2*nen), de(1:2*nen))
+                    call plane42rect_ss(xe, de, young, nu, estress, estrain)
+                    stress(e, 1:3) = estress
+                    strain(e, 1:3) = estrain
+
+                    sigma_vm = sqrt((estress(1)**2) + (estress(2)**2) - (estress(1)*estress(2)) + 3*(estress(3)**2))
+                    sigma_1 = 0.5 * (estress(1) + estress(2))+sqrt(((estress(1)-estress(2))/2)**2 + (estress(3)**2))
+                    sigma_2 = 0.5 * (estress(1) + estress(2))-sqrt(((estress(1)-estress(2))/2)**2 + (estress(3)**2))
+                    psi = atan2(((-2*estress(3))), ((estress(1)-estress(2))))/2.0_wp
+
+                    stress_eq(e, 1) = sigma_vm
+                    stress_eq(e, 2) = sigma_1
+                    stress_eq(e, 3) = sigma_2
+                    stress_eq(e, 4) = psi
             end select
         end do
     end subroutine recover

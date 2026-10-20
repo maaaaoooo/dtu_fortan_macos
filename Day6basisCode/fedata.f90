@@ -122,6 +122,13 @@ module fedata
         !! * column 1: \(\sigma_{11}\)
         !! * column 2: \(\sigma_{22}\)
         !! * column 3: \(\sigma_{12}\)
+    real(wp), dimension(:,:), allocatable :: stress_eq
+        !! * Von Mises, Principal stresses and direction
+        !! * _i_-th row: stress/direction in element _i_
+        !! * column 1: \(\sigma_{vm}\)
+        !! * column 2: \(\sigma_1\)
+        !! * column 3: \(\sigma_2\)
+        !! * column 4: \(\psi\) rad   
     real(wp), dimension(:),   allocatable :: p
         !! Force vector
     real(wp), dimension(:),   allocatable :: d
@@ -157,7 +164,7 @@ module fedata
         !! Scale length of vectors for plotting
     real(wp), parameter :: scale_thk = 1.0_wp
         !! Scale thickness of lines
-    logical, parameter :: banded = .false.
+    logical, parameter :: banded = .True.
         !! Indicate whether the system matrix is in banded form or not (full matrix)
     logical, parameter :: penalty = .false.
         !! Indicate whether boundary conditions are imposed by the penalty method or not (zero-one method)

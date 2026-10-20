@@ -316,7 +316,8 @@ contains
         estress = matmul(cmat, estrain)
 
         ! Compute principal stress and direction
-        ! oppgave 6 (tror jeg)
+        ! Does this in fea.f90 to not change the subroutine
+
     end subroutine plane42rect_ss
 
 end module plane42rect

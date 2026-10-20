@@ -18,4 +18,7 @@ program main
     ! Calculate displacements
     call displ
 
+    ! Calculate compliance
+    call compliance
+
 end program main

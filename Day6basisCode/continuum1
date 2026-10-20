@@ -250,13 +250,14 @@ D,    9, UY, 0.000000000
 !F,  115, FX, 0.002500000
 !F,  116, FX, 0.002500000
 !F,  117, FX, 0.001250000
+F,  109, FY, -0.05
 ! Define surface load conditions: SFE, element #, face #, PRES, 0, value
-SFE,   89, 2, PRES, 0, -0.01
-SFE,   90, 2, PRES, 0, -0.01
-SFE,   91, 2, PRES, 0, -0.01
-SFE,   92, 2, PRES, 0, -0.01
-SFE,   93, 2, PRES, 0, -0.01
-SFE,   94, 2, PRES, 0, -0.01
-SFE,   95, 2, PRES, 0, -0.01
-SFE,   96, 2, PRES, 0, -0.01
+!SFE,   89, 2, PRES, 0, -0.01
+!SFE,   90, 2, PRES, 0, -0.01
+!SFE,   91, 2, PRES, 0, -0.01
+!SFE,   92, 2, PRES, 0, -0.01
+!SFE,   93, 2, PRES, 0, -0.01
+!SFE,   94, 2, PRES, 0, -0.01
+!SFE,   95, 2, PRES, 0, -0.01
+!SFE,   96, 2, PRES, 0, -0.01
 FINISH

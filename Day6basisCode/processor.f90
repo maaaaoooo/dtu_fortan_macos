@@ -423,6 +423,12 @@ contains
             end select
         end do
 
+        write (10, *)
+        write (10, '("Element   von Mises       sigma_1         sigma_2         psi [rad]")')
+        do e = 1, ne
+            if (element(e)%id == 2) write (10, '(1x, i6, 4(1x, f15.9))') e, (stress_eq(e, i), i = 1, 4)
+        end do
+
         close (10)
     end subroutine output
 !

@@ -5,7 +5,7 @@
  % Determine colorscale
  colormap('jet')
  % Make plot
- title('Stresses')
+ title('Shear stress')
  hold on
  patch("Faces", IX(:,1:4), "Vertices", X(:,1:2), "CData", plotval, "FaceColor", "flat", "EdgeColor", "k");
  axis equal;
