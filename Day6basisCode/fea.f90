@@ -133,6 +133,9 @@ contains
 
         c = dot_product(p, d)
         write (*, '("Compliance C = p^T d = ", es15.8)') c        
+        open (20, file='compliance.dat', position='append')
+        write (20, '(i8, 1x, i8, 1x, es20.10)') ne, neqn, c
+        close (20)
 
     end subroutine compliance
 
