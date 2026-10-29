@@ -18,7 +18,7 @@ contains
 
         use fedata
         use link1
-        use plane42rect
+        use plane42rectskewd
 
 ! Hint for continuum elements:
         !integer, parameter :: mdim = 8
@@ -148,7 +148,7 @@ contains
         !! This subroutine builds the global load vector
 
         use fedata
-        use plane42rect
+        use plane42rectskewd
         
 ! Hint for continuum elements:
 
@@ -199,7 +199,7 @@ contains
 
         use fedata
         use link1
-        use plane42rect
+        use plane42rectskewd
 
         integer :: e, i, j
         integer :: nen
@@ -334,7 +334,7 @@ contains
 
         use fedata
         use link1
-        use plane42rect
+        use plane42rectskewd
 
         integer :: e, i, nen
         integer :: edof(mdim)

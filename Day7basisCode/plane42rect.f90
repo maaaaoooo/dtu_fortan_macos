@@ -29,7 +29,7 @@ module plane42rect
     public :: plane42rect_ke, plane42rect_re, plane42rect_ss
 
 contains
-
+    
     subroutine plane42rect_ke(xe, young, nu, thk, ke)
 
         !! This subroutine constructs the stiffness matrix for
