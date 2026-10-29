@@ -235,27 +235,20 @@ contains
             !! * `estrain(3)` = \(\epsilon_{12}\)
 
         ! New variables
-        real(wp) :: bmat(3, 8), cmat(3, 3) 
-        real(wp) :: aa, bb, dndx(4), dndy(4), fact
-        integer :: i
+        real(wp) :: B(3, 8), cmat(3, 3), ex(4), ey(4), n(2, 8), J(2, 2)
+        real(wp) :: fact, J_det, xi, eta
+
+        ex = xe(1::2)
+        ey = xe(2::2)
+        xi = 0.0_wp
+        eta = 0.0_wp
 
         ! Build strain-displacement matrix
 
-        aa = (xe(3)-xe(1))/2
-        bb = (xe(8)-xe(2))/2
-        dndx = [-1.0_wp, 1.0_wp, 1.0_wp, -1.0_wp]/(4*aa)
-        dndy = [-1.0_wp, -1.0_wp, 1.0_wp, 1.0_wp]/(4*bb)
-
-        bmat = 0
-        do i = 1, 4
-            bmat(1,2*i-1) = dndx(i)
-            bmat(2,2*i) = dndy(i)
-            bmat(3,2*i-1) = dndy(i)
-            bmat(3,2*i) = dndx(i)
-        end do
+        call plane42rect_shape(ex, ey, xi, eta, n, B, J_det, J)
 
         ! Compute element strain
-        estrain = matmul(bmat, de)
+        estrain = matmul(B, de)
 
         ! Build constitutive matrix (plane stress)
         cmat = 0
@@ -265,7 +258,7 @@ contains
         cmat(2,1) = fact*nu
         cmat(2,2) = fact
         cmat(3,3) = fact*(1.0_wp-nu)/2
-
+        
         ! Compute element stress
         estress = matmul(cmat, estrain)
 
