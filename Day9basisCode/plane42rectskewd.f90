@@ -107,7 +107,7 @@ contains
         real(wp), parameter :: gauss_points(2) = [-1.0_wp/sqrt(3.0_wp), 1.0_wp/sqrt(3.0_wp)]
         real(wp), parameter :: gauss_weight(2) = [1.0_wp, 1.0_wp]
         real(wp) :: ex(4), ey(4)
-        real(wp) :: B(3, 8), J_det, J(2, 2), n(2, 8)
+        real(wp) :: B(3, 8), J_det, J(2, 2), n(2, 8), CB(3, 8)
         integer :: i, y, n_g
 
         ! Resetting element stiffness matrix
@@ -124,13 +124,17 @@ contains
 
         ! Gaus-points, 2*n_g - 1 = p, p = 2 => n_g >= 1.5 => n_g = 2
         n_g = 2
+        ! Picking out the x and y coordinates, they are every other term each
         ex = xe(1::2)
         ey = xe(2::2)
         
+        ! Double loop to calculate element stiffness matrix
         do i = 1, n_g
             do y = 1, n_g
                 call plane42rect_shape(ex, ey, gauss_points(i), gauss_points(y), n, B, J_det, J)
-                ke = ke + gauss_weight(i)*gauss_weight(y)*thk*matmul(transpose(B), matmul(cmat, B))*J_det
+                ! Splitting up matmul because of potential stack overflow problem
+                CB = matmul(cmat, B)
+                ke = ke + gauss_weight(i)*gauss_weight(y)*thk*matmul(transpose(B), CB)*J_det
             end do
         end do
 

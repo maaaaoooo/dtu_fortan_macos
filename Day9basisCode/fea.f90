@@ -119,7 +119,40 @@ contains
         call plotmatlabevec('Principal stresses', stress_eq(:, 2), stress_eq(:, 3), stress_eq(:, 4))
 
     end subroutine displ
+!
+!--------------------------------------------------------------------------------------------------
+!
+    subroutine eigen
 
+        !! This subroutine calculates displacements
+
+        use fedata
+        use numeth
+        use processor
+
+        integer :: e, i, j
+        real(wp), dimension(:), allocatable :: plotval
+
+        ! Build load-vector
+        call buildload
+
+        ! Build stiffness matrix
+        call buildstiff
+
+        ! Remove rigid body modes
+        call enforce
+
+        if (.not. banded) then
+            ! Factor stiffness matrix
+            call factor(kmat)
+        else
+            ! Factor banded stiffness matrix
+            call bfactor(kmat)
+        end if
+
+        do i = 1, 
+
+    end subroutine eigen
 !
 !--------------------------------------------------------------------------------------------------
 !
@@ -265,6 +298,82 @@ contains
             end if  
         end do
     end subroutine buildstiff
+!
+!--------------------------------------------------------------------------------------------------
+!
+    subroutine mmul
+
+        !! This subroutine builds the global stiffness matrix from
+        !! the local element stiffness matrices
+
+        use fedata
+        use link1
+        use plane42rectskewd
+
+        integer :: e, i, j
+        integer :: nen
+! Hint for system matrix in band form:
+        integer :: irow, icol
+        integer, dimension(mdim) :: edof
+        real(wp), dimension(mdim) :: xe
+        real(wp), dimension(mdim, mdim) :: ke
+! Hint for modal analysis:
+        real(wp), dimension(mdim, mdim) :: me
+        real(wp) :: young, area
+! Hint for modal analysis and continuum elements:
+        real(wp) :: nu, dens, thk
+
+        ! Reset stiffness matrix
+        kmat = 0
+        !if (.not. banded) then
+        !    kmat = 0
+        !else
+        !    kmat = 0
+        !end if
+
+        do e = 1, ne
+
+            ! Find coordinates and degrees of freedom
+            nen = element(e)%numnode
+            do i = 1, nen
+                 xe(2*i-1) = x(element(e)%ix(i),1)
+                 xe(2*i  ) = x(element(e)%ix(i),2)
+                 edof(2*i-1) = 2 * element(e)%ix(i) - 1
+                 edof(2*i)   = 2 * element(e)%ix(i)
+            end do
+
+            ! Gather material properties and find element stiffness matrix
+            select case( element(e)%id )
+            case( 1 )
+                 young = mprop(element(e)%mat)%young
+                 area  = mprop(element(e)%mat)%area
+                 call link1_ke(xe, young, area, ke)
+            case( 2 )
+                 young = mprop(element(e)%mat)%young
+                 nu = mprop(element(e)%mat)%nu
+                 thk = mprop(element(e)%mat)%thk
+                 call plane42rect_ke(xe, young, nu, thk, ke)
+            end select
+
+            ! Assemble into global matrix
+            if (.not. banded) then
+                do i = 1, 2*nen
+                    do j = 1, 2*nen
+                        kmat(edof(i), edof(j)) = kmat(edof(i), edof(j)) + ke(i, j)
+                    end do
+                end do
+! Hint: Can you eliminate the loops above by using a different Fortran array syntax?
+            else
+                do i = 1, 2*nen
+                    do j = 1, 2*nen
+                    if (edof(j) >= edof(i)) then
+                        kmat(edof(j)-edof(i)+1, edof(i)) = kmat(edof(j)-edof(i)+1, edof(i)) + ke(i, j)
+                    end if
+                    end do
+                end do
+            end if  
+        end do
+    end subroutine mmul
 !
 !--------------------------------------------------------------------------------------------------
 !

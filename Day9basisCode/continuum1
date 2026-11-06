@@ -261,3 +261,6 @@ F,  109, FY, -0.05
 !SFE,   95, 2, PRES, 0, -0.01
 !SFE,   96, 2, PRES, 0, -0.01
 FINISH
+/SOLU
+antype, static
+FINISH
