@@ -34,9 +34,9 @@ contains
         implicit none
 
         real(wp), intent(in) :: ex(4), ey(4), xi, eta
-        real(wp), intent(out) :: B(3, 8), J_det, J(2, 2)
+        real(wp), intent(out) :: B(3, 8), J_det, J(2, 2), n(2,8)
 
-        real(wp) :: N_thilde(4, 8), L(3, 4), Gamma(2, 2), Gamma_thilde(4, 4), n(2, 8)
+        real(wp) :: N_thilde(4, 8), L(3, 4), Gamma(2, 2), Gamma_thilde(4, 4)
         real(wp) :: xi_i(4) = [-1.0_wp, 1.0_wp, 1.0_wp, -1.0_wp]
         real(wp) :: eta_i(4) = [-1.0_wp, -1.0_wp, 1.0_wp, 1.0_wp]
         real(wp) :: dNdxi(4), dNdeta(4)
@@ -83,7 +83,7 @@ contains
 !--------------------------------------------------------------------------------------------------
 !
 
-    subroutine plane42rect_ke(xe, young, nu, thk, ke)
+    subroutine plane42rect_ke(xe, young, nu, thk, ke, dens, me)
 
         !! This subroutine constructs the stiffness matrix for
         !! a rectangular 4-noded quad element.
@@ -93,6 +93,8 @@ contains
             !! Poisson's Ratio for this element
         real(wp), intent(in) :: thk
             !! Thickness of this element
+        real(wp), intent(in) :: dens
+            !! Density of this element
         real(wp), dimension(:), intent(in) :: xe
             !! Nodal coordinates of this element in undeformed configuration
             !!
@@ -103,6 +105,7 @@ contains
             !!
             !! See also [[plane42rect]]
         real(wp), dimension(:,:), intent(out) :: ke
+        real(wp), dimension(:,:), intent(out) :: me
         real(wp) :: cmat(3,3), fact
         real(wp), parameter :: gauss_points(2) = [-1.0_wp/sqrt(3.0_wp), 1.0_wp/sqrt(3.0_wp)]
         real(wp), parameter :: gauss_weight(2) = [1.0_wp, 1.0_wp]
@@ -112,6 +115,7 @@ contains
 
         ! Resetting element stiffness matrix
         ke = 0.0_wp
+        me = 0.0_wp
 
         ! build constitutive matrix (plane stress)
         cmat = 0.0_wp
@@ -130,11 +134,15 @@ contains
         
         ! Double loop to calculate element stiffness matrix
         do i = 1, n_g
+            ! y because fortran doesnt care about capitol letters
             do y = 1, n_g
+                ! Call shape function to retrieve B, J_det and J
                 call plane42rect_shape(ex, ey, gauss_points(i), gauss_points(y), n, B, J_det, J)
                 ! Splitting up matmul because of potential stack overflow problem
                 CB = matmul(cmat, B)
+                ! Calculate the element stiffness matrix
                 ke = ke + gauss_weight(i)*gauss_weight(y)*thk*matmul(transpose(B), CB)*J_det
+                me = me + gauss_weight(i)*gauss_weight(y)*dens*thk*matmul(transpose(n), n)*J_det
             end do
         end do
 
