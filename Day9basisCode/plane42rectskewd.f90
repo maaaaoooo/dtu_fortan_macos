@@ -42,14 +42,18 @@ contains
         real(wp) :: dNdxi(4), dNdeta(4)
         integer :: i
 
+        ! Defined in (8.6) in courese notes
         L = 0.0_wp
         L(1, 1) = 1
         L(2, 4) = 1
         L(3,2) = 1
         L(3,3) = 1
 
+        ! Resetting values
         n = 0.0_wp
         N_thilde = 0.0_wp
+
+        ! Building the N_thilde and n matrices given in DAY8
         do i = 1, 4
             dNdxi(i) = 0.25_wp * xi_i(i) * (1 + eta_i(i) * eta)
             dNdeta(i) = 0.25_wp * eta_i(i) * (1 + xi_i(i) * xi)
@@ -60,18 +64,20 @@ contains
             n(1, 2*i-1) = 0.25_wp * (1+xi_i(i)*xi)*(1+eta_i(i)*eta)
             n(2, 2*i) = 0.25_wp * (1+xi_i(i)*xi)*(1+eta_i(i)*eta)
         end do
-        
+        ! Defining the Jacobi matrix
         J(1, 1) = sum(dNdxi * ex)
         J(2, 1) = sum(dNdeta * ex)
         J(1, 2) = sum(dNdxi * ey)
         J(2, 2) = sum(dNdeta * ey)
 
+        ! Defining the Jacobi determinant and the gamma (inverted Jacobi)
         J_det = J(1, 1) * J(2, 2) - J(2, 1) * J(1, 2)
         Gamma(1, 1) = J(2, 2) / J_det
         Gamma(2, 1) = -J(2, 1) / J_det
         Gamma(1, 2) = -J(1, 2) / J_det
         Gamma(2, 2) = J(1, 1) / J_det
 
+        ! Defining Gamma_thilde
         Gamma_thilde = 0.0_wp
         Gamma_thilde(1:2, 1:2) = Gamma
         Gamma_thilde(3:4, 3:4) = Gamma
@@ -155,6 +161,7 @@ contains
         !! This subroutine computes the element load vector due
         !! to surface traction (traction is always perpendicular
         !! to element face).
+        !! Consistent nodal loads
 
         integer, intent(in) :: eface
             !! Element face where traction (pressure) is applied
@@ -183,30 +190,39 @@ contains
         J_cal = 0.0_wp
         re = 0.0_wp
 
+        ! Checking which face of the element we are at
         if (eface == 1) then
+            ! iterating through Gauss points
             do i = 1, n_g
                 call plane42rect_shape(ex, ey, gauss_points(i), -1.0_wp, n, B, J_det, J)
+                ! Defining the J-vector for consistant nodal loads
                 J_cal(1) = -J(1, 2)
                 J_cal(2) = J(1, 1)
                 re = re + gauss_weight(i) * thk * fe * matmul(transpose(n), J_cal)
             end do
         elseif (eface == 2) then
+            ! iterating through Gauss points
             do i = 1, n_g
                 call plane42rect_shape(ex, ey, 1.0_wp, gauss_points(i), n, B, J_det, J)
+                ! Defining the J-vector for consistant nodal loads
                 J_cal(1) = -J(2, 2)
                 J_cal(2) = J(2, 1)
                 re = re + gauss_weight(i) * thk * fe * matmul(transpose(n), J_cal)
             end do
         elseif (eface == 3) then
+            ! iterating through Gauss points
             do i = 1, n_g
                 call plane42rect_shape(ex, ey, gauss_points(i), 1.0_wp, n, B, J_det, J)
+                ! Defining the J-vector for consistant nodal loads
                 J_cal(1) = J(1, 2)
                 J_cal(2) = -J(1, 1)
                 re = re + gauss_weight(i) * thk * fe * matmul(transpose(n), J_cal)
             end do
         elseif (eface == 4) then
+            ! iterating through Gauss points
             do i = 1, n_g
                 call plane42rect_shape(ex, ey, -1.0_wp, gauss_points(i), n, B, J_det, J)
+                ! Defining the J-vector for consistant nodal loads
                 J_cal(1) = J(2, 2)
                 J_cal(2) = -J(2, 1)
                 re = re + gauss_weight(i) * thk * fe * matmul(transpose(n), J_cal)

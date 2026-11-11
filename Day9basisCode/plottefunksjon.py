@@ -10,7 +10,7 @@ FIL = "lbeam"                                  # navn på inputfilen
 MAPPE = "."                                    # mappen der main_program ligger
 EPS = 1e-3                                     # minste tykkelse, unngår t = 0 (singulær K)
 
-def lag_input(x):                              # skriver inputfilen for én verdi av x
+def lag_input(x, navn):                        # skriver inputfilen for én verdi av x
     t_soyle = max(x, EPS)                      # søyle: t = x
     t_bjelke = max(1 - x, EPS)                 # bjelke: t = 1 - x
     soyle = [(i, j) for i in range(1 * n) for j in range(5 * n)]          # celler i søylen (x 0-1, y 0-5)
@@ -43,7 +43,7 @@ def lag_input(x):                              # skriver inputfilen for én verd
     for nr in fast:                            # fastholdte noder
         L += [f"D,{nr}, UX, 0.0", f"D,{nr}, UY, 0.0"]            # begge retninger låst
     L += ["FINISH", "/SOLU", "antype, modal", "FINISH"]          # modalanalyse
-    with open(os.path.join(MAPPE, FIL), "w") as f:               # skriver filen
+    with open(os.path.join(MAPPE, navn), "w") as f:              # skriver filen med eget navn
         f.write("\n".join(L) + "\n")
 
 def les_omega(ut, antall=6):                   # henter omega ut av programmets utskrift
@@ -54,19 +54,38 @@ def les_omega(ut, antall=6):                   # henter omega ut av programmets 
             omega.append(float(d[2]))          # tredje tall er omega
     return omega[:antall]                      # de første modene
 
-xs = np.linspace(0, 1, 20)                     # 20 verdier av x fra 0 til 1
-omega = np.zeros((len(xs), 6))                 # rad = x-verdi, kolonne = modus
-for k, x in enumerate(xs):                     # løkke over x
-    lag_input(x)                               # lager inputfilen for denne x
-    ut = subprocess.run(["./main_program"], input=FIL + "\n", capture_output=True,
-                        text=True, cwd=MAPPE).stdout   # kjører programmet, fanger utskriften
-    omega[k, :] = les_omega(ut)                # lagrer de seks frekvensene i rad k
-np.save("omega_lbeam.npy", omega)              # lagrer arrayet til fil
+# --- A) Frekvenskurvene (alle x-verdier), kommentert ut ---
+# xs = np.linspace(0, 1, 40)                   # 40 verdier av x fra 0 til 1
+# omega = np.zeros((len(xs), 6))               # rad = x-verdi, kolonne = modus
+# for k, x in enumerate(xs):                   # løkke over x
+#     lag_input(x, FIL)                        # lager inputfilen for denne x
+#     ut = subprocess.run(["./main_program"], input=FIL + "\n", capture_output=True,
+#                         text=True, cwd=MAPPE).stdout   # kjører programmet, fanger utskriften
+#     omega[k, :] = les_omega(ut)              # lagrer de seks frekvensene i rad k
+# np.save("omega_lbeam.npy", omega)            # lagrer arrayet til fil
 
-for i in range(6):                             # én kurve per modus
-    plt.plot(xs, omega[:, i], marker="^", alpha=1, label=f"Mode {i + 1}")
-plt.xlabel("x")                                # x-aksen
-plt.ylabel(r"$\omega$ [rad/s]")                # y-aksen (del på $2\pi$ for Hz)
-plt.legend(fontsize=14, markerscale=0.5, handlelength=1.5, frameon=True)         # tegnforklaring
-plt.grid()
-plt.show()                                     # viser plottet
+# --- B) Egenmodene (utvalgte x-verdier), kommentert ut ---
+# valgte = [0.05, 0.3, 0.95]
+# for x in valgte:
+#     navn = f"lbeam_x{round(x*100):03d}"
+#     lag_input(x, navn)
+#     subprocess.run(["./main_program"], input=navn + "\n",
+#                    capture_output=True, text=True, cwd=MAPPE)
+
+# --- C) Nøyaktige frekvenser til sammenligningstabellen ---
+for x in [0.001, 0.999]:                         # de to x-verdiene
+    lag_input(x, "lbeam_tmp")                  # lager inputfilen
+    ut = subprocess.run(["./main_program"], input="lbeam_tmp\n",
+                        capture_output=True, text=True, cwd=MAPPE).stdout   # kjører programmet
+    print(x, [round(w, 4) for w in les_omega(ut)])   # skriver ut de seks frekvensene (rad/s)
+
+# --- Plotting av frekvenskurvene (bruker xs og omega fra A) ---
+# for i in range(6):                           # én kurve per modus
+#     plt.plot(xs, omega[:, i], marker="^", alpha=1, label=f"Mode {i + 1}")
+# plt.xlabel(r"$x$", fontsize=20)              # x-aksen
+# plt.ylabel(r"$\omega$ [rad/s]", fontsize=20) # y-aksen
+# plt.legend(fontsize=18, markerscale=0.5, handlelength=1.5, frameon=True)   # tegnforklaring
+# plt.grid()
+# plt.tight_layout()
+# plt.savefig("omega_lbeam.png", bbox_inches="tight", pad_inches=0.05, dpi=300)
+# plt.show()                                   # viser plottet

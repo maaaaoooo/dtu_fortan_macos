@@ -108,8 +108,10 @@ contains
         ! Plot element values
         allocate (plotval(ne))
         do e = 1, ne
+            ! Allocated different stresses to elements
             if (element(e)%id == 1) then
                 plotval(e) = stress(e,1)
+            ! Allocated different stresses to elements    
             else if (element(e)%id == 2) then
                 plotval(e) = stress(e,3)
             end if
@@ -243,7 +245,7 @@ contains
             tvec(1) = 2.0_wp*(2.0_wp*pi/omega(i))
             ! Time between each time instance
             tvec(2) = (2.0_wp*pi/omega(i))/30.0_wp
-            !call plotmatlabeig('Mode', omega(i), scale_mode*dmat(:, i), tvec)
+            call plotmatlabeig('Mode', omega(i), scale_mode*dmat(:, i), tvec)
         end do
     end subroutine eigen
 !
@@ -546,9 +548,13 @@ contains
                     stress(e, 1:3) = estress
                     strain(e, 1:3) = estrain
 
+                    ! Von mises
                     sigma_vm = sqrt((estress(1)**2) + (estress(2)**2) - (estress(1)*estress(2)) + 3*(estress(3)**2))
+                    ! Sigma 1
                     sigma_1 = 0.5 * (estress(1) + estress(2))+sqrt(((estress(1)-estress(2))/2)**2 + (estress(3)**2))
+                    ! Sigma 2
                     sigma_2 = 0.5 * (estress(1) + estress(2))-sqrt(((estress(1)-estress(2))/2)**2 + (estress(3)**2))
+                    ! Angle
                     psi = atan2(((-2*estress(3))), ((estress(1)-estress(2))))/2.0_wp
 
                     stress_eq(e, 1) = sigma_vm
