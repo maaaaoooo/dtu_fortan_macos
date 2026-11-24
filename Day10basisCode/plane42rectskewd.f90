@@ -29,17 +29,19 @@ module plane42rectskewd
     public :: plane42rect_ke, plane42rect_re, plane42rect_ss
 
 contains
-
-    subroutine plane42rect_shape(ex, ey, xi, eta, n, B, J_det, J)
+                                                    ! LA TIL 'de', HUSK
+    subroutine plane42rect_shape(ex, ey, xi, eta, n, B_0, J_det, J, de, B_L, A, G)
         implicit none
 
         real(wp), intent(in) :: ex(4), ey(4), xi, eta
-        real(wp), intent(out) :: B(3, 8), J_det, J(2, 2), n(2,8)
+        real(wp), dimension(:), intent(in)  :: de
+        real(wp), intent(out) :: J_det, J(2, 2), n(2,8), G(4, 8), A(3, 4)
+        real(wp), intent(out) :: B_0(3, 8), B_L(3, 8), B_merk(3, 8)
 
-        real(wp) :: N_thilde(4, 8), L(3, 4), Gamma(2, 2), Gamma_thilde(4, 4)
+        real(wp) :: N_thilde(4, 8), L(3, 4), Gamma(2, 2), Gamma_thilde(4, 4), gi(4, 2, 4), thilde(4, 8)
         real(wp) :: xi_i(4) = [-1.0_wp, 1.0_wp, 1.0_wp, -1.0_wp]
         real(wp) :: eta_i(4) = [-1.0_wp, -1.0_wp, 1.0_wp, 1.0_wp]
-        real(wp) :: dNdxi(4), dNdeta(4)
+        real(wp) :: dNdxi(4), dNdeta(4), theta_x(2), theta_y(2)
         integer :: i
 
         ! Defined in (8.6) in courese notes
@@ -52,8 +54,11 @@ contains
         ! Resetting values
         n = 0.0_wp
         N_thilde = 0.0_wp
+        gi = 0.0_wp
+        theta_x = 0.0_wp
+        theta_y = 0.0_wp
 
-        ! Building the N_thilde and n matrices given in DAY8
+        ! Building the N_thilde and n matrices given in DAY8, the G-matrix and the A-matrix
         do i = 1, 4
             dNdxi(i) = 0.25_wp * xi_i(i) * (1 + eta_i(i) * eta)
             dNdeta(i) = 0.25_wp * eta_i(i) * (1 + xi_i(i) * xi)
@@ -63,7 +68,20 @@ contains
             N_thilde(4, 2*i) = dNdeta(i)
             n(1, 2*i-1) = 0.25_wp * (1+xi_i(i)*xi)*(1+eta_i(i)*eta)
             n(2, 2*i) = 0.25_wp * (1+xi_i(i)*xi)*(1+eta_i(i)*eta)
+            gi(:, :, i) = reshape([dNdxi(i), 0.0_wp, dNdeta(i), 0.0_wp, &
+                                   0.0_wp, dNdxi(i), dNdeta(i), 0.0_wp], [4, 2])
+            G(:, 2*i -1:2*i) = gi(:, :, i)
+            theta_x(1) = theta_x(1) + dNdxi(i) * de(2*i-1)
+            theta_x(2) = theta_x(2) + dNdxi(i) * de(2*i)
+            theta_y(1) = theta_y(1) + dNdeta(i) * de(2*i-1)
+            theta_y(2) = theta_y(2) + dNdeta(i) * de(2*i)
         end do
+
+        ! Defining the A-matrix
+        A(1, :) = [theta_x(1), theta_x(2), 0.0_wp, 0.0_wp]
+        A(2, :) = [0.0_wp, 0.0_wp, theta_y(1), theta_y(2)]
+        A(3, :) = [theta_y(1), theta_y(2), theta_x(1), theta_x(2)]
+
         ! Defining the Jacobi matrix
         J(1, 1) = sum(dNdxi * ex)
         J(2, 1) = sum(dNdeta * ex)
@@ -81,15 +99,18 @@ contains
         Gamma_thilde = 0.0_wp
         Gamma_thilde(1:2, 1:2) = Gamma
         Gamma_thilde(3:4, 3:4) = Gamma
-
-        B = matmul(L, matmul(Gamma_thilde, N_thilde))
+        
+        ! Splitting multiplication up
+        thilde = matmul(Gamma_thilde, N_thilde)
+        B_0 = matmul(L, thilde)
+        B_L = matmul(A, G)
 
     end subroutine plane42rect_shape
 !
 !--------------------------------------------------------------------------------------------------
 !
 
-    subroutine plane42rect_ke(xe, young, nu, thk, ke, dens, me)
+    subroutine plane42rect_ke(xe, young, nu, thk, ke, dens, R_int)
 
         !! This subroutine constructs the stiffness matrix for
         !! a rectangular 4-noded quad element.
@@ -111,17 +132,19 @@ contains
             !!
             !! See also [[plane42rect]]
         real(wp), dimension(:,:), intent(out) :: ke
-        real(wp), dimension(:,:), intent(out) :: me
+        real(wp), intent(out) :: R_int(8)
+        !real(wp), dimension(:,:), intent(out) :: me
         real(wp) :: cmat(3,3), fact
         real(wp), parameter :: gauss_points(2) = [-1.0_wp/sqrt(3.0_wp), 1.0_wp/sqrt(3.0_wp)]
         real(wp), parameter :: gauss_weight(2) = [1.0_wp, 1.0_wp]
-        real(wp) :: ex(4), ey(4)
-        real(wp) :: B(3, 8), J_det, J(2, 2), n(2, 8), CB(3, 8)
+        real(wp) :: ex(4), ey(4), estress(3)
+        real(wp) :: B_0(3, 8), J_det, J(2, 2), n(2, 8), CB(3, 8), ke_sigma(8, 8), ke_0(8,8), M(4, 4), I_mat(2, 2)
+        real(wp) :: B_L(3,8), A(3,4), G(4,8), AG(4, 8), B_strek(3, 8)
         integer :: i, y, n_g
 
         ! Resetting element stiffness matrix
         ke = 0.0_wp
-        me = 0.0_wp
+        R_int = 0.0_wp
 
         ! build constitutive matrix (plane stress)
         cmat = 0.0_wp
@@ -137,18 +160,41 @@ contains
         ! Picking out the x and y coordinates, they are every other term each
         ex = xe(1::2)
         ey = xe(2::2)
+
+        ! Collecting the stress
+        call plane42rect_ss(xe, de, young, nu, estress, estrain, xi, eta)
+        ! Assembling the (2x2) identity matrix
+        I_mat = 0.0_wp
+        I_mat(1, 1) = 1.0_wp
+        I_mat(2, 2) = 1.0_wp
         
         ! Double loop to calculate element stiffness matrix
         do i = 1, n_g
             ! y because fortran doesnt care about capitol letters
             do y = 1, n_g
-                ! Call shape function to retrieve B, J_det and J
-                call plane42rect_shape(ex, ey, gauss_points(i), gauss_points(y), n, B, J_det, J)
+                ! Pick out xi and eta for the given gauss point
+                xi = gauss_points(i)
+                eta = gauss_points(y)
+                ! Call shape function to retrieve B_0, J_det and J
+                call plane42rect_shape(ex, ey, xi, eta, n, B_0, J_det, J, de, B_L, A, G)
+                ! Call stress/strain-function
+                call plane42rect_ss(xe, de, young, nu, estress, estrain, xi, eta)
+                ! Assembling the M-matrix
+                M(1:2,1:2) = estress(1) * I_mat
+                M(3:4,1:2) = estress(3) * I_mat
+                M(1:2,3:4) = estress(3) * I_mat
+                M(3:4,3:4) = estress(2) * I_mat
+
                 ! Splitting up matmul because of potential stack overflow problem
-                CB = matmul(cmat, B)
+                B_strek = B_0 + B_L
+                CB = matmul(cmat, B_strek)
+                AG = matmul(M, G)
+
                 ! Calculate the element stiffness matrix
-                ke = ke + gauss_weight(i)*gauss_weight(y)*thk*matmul(transpose(B), CB)*J_det
-                me = me + gauss_weight(i)*gauss_weight(y)*dens*thk*matmul(transpose(n), n)*J_det
+                ke_0 = gauss_weight(i)*gauss_weight(y)*thk*matmul(transpose(B_strek), CB)*J_det
+                ke_sigma = gauss_weight(i)*gauss_weight(y)*thk*matmul(transpose(G), AG)*J_det
+                ke = ke + ke_0 + ke_sigma
+                R_int = R_int + gauss_weight(i)*gauss_weight(y)*thk*matmul(transpose(B_strek), estress)*J_det
             end do
         end do
 
@@ -180,7 +226,7 @@ contains
             !! * etc...
         real(wp), parameter :: gauss_weight(2) = [1.0_wp, 1.0_wp]
         real(wp) :: ex(4), ey(4)
-        real(wp) :: B(3, 8), J_det, J(2, 2), J_cal(2), n(2, 8)
+        real(wp) :: B_0(3, 8), J_det, J(2, 2), J_cal(2), n(2, 8)
         real(wp), parameter :: gauss_points(2) = [-1.0_wp/sqrt(3.0_wp), 1.0_wp/sqrt(3.0_wp)]
         integer :: i
         integer, parameter :: n_g = 2
@@ -194,7 +240,7 @@ contains
         if (eface == 1) then
             ! iterating through Gauss points
             do i = 1, n_g
-                call plane42rect_shape(ex, ey, gauss_points(i), -1.0_wp, n, B, J_det, J)
+                call plane42rect_shape(ex, ey, gauss_points(i), -1.0_wp, n, B_0, J_det, J)
                 ! Defining the J-vector for consistant nodal loads
                 J_cal(1) = -J(1, 2)
                 J_cal(2) = J(1, 1)
@@ -203,7 +249,7 @@ contains
         elseif (eface == 2) then
             ! iterating through Gauss points
             do i = 1, n_g
-                call plane42rect_shape(ex, ey, 1.0_wp, gauss_points(i), n, B, J_det, J)
+                call plane42rect_shape(ex, ey, 1.0_wp, gauss_points(i), n, B_0, J_det, J)
                 ! Defining the J-vector for consistant nodal loads
                 J_cal(1) = -J(2, 2)
                 J_cal(2) = J(2, 1)
@@ -212,7 +258,7 @@ contains
         elseif (eface == 3) then
             ! iterating through Gauss points
             do i = 1, n_g
-                call plane42rect_shape(ex, ey, gauss_points(i), 1.0_wp, n, B, J_det, J)
+                call plane42rect_shape(ex, ey, gauss_points(i), 1.0_wp, n, B_0, J_det, J)
                 ! Defining the J-vector for consistant nodal loads
                 J_cal(1) = J(1, 2)
                 J_cal(2) = -J(1, 1)
@@ -221,7 +267,7 @@ contains
         elseif (eface == 4) then
             ! iterating through Gauss points
             do i = 1, n_g
-                call plane42rect_shape(ex, ey, -1.0_wp, gauss_points(i), n, B, J_det, J)
+                call plane42rect_shape(ex, ey, -1.0_wp, gauss_points(i), n, B_0, J_det, J)
                 ! Defining the J-vector for consistant nodal loads
                 J_cal(1) = J(2, 2)
                 J_cal(2) = -J(2, 1)
@@ -232,7 +278,7 @@ contains
 !
 !--------------------------------------------------------------------------------------------------
 !
-    subroutine plane42rect_ss(xe, de, young, nu, estress, estrain)
+    subroutine plane42rect_ss(xe, de, young, nu, estress, estrain, xi, eta)
 
         !! This subrotuine computes the element stress and strain (The location inside the element
         !! where stress and and strain is evaluated, is defined inside the subroutine).
@@ -261,22 +307,23 @@ contains
             !! * `estrain(1)` = \(\epsilon_{11}\)
             !! * `estrain(2)` = \(\epsilon_{22}\)
             !! * `estrain(3)` = \(\epsilon_{12}\)
-
+        ! xi and eta
+        real(wp), intent(in) :: xi, eta
         ! New variables
-        real(wp) :: B(3, 8), cmat(3, 3), ex(4), ey(4), n(2, 8), J(2, 2)
+        real(wp) :: B_0(3, 8), cmat(3, 3), ex(4), ey(4), n(2, 8), J(2, 2)
+        real(wp) :: B_L(3, 8), A(3, 4), G(4, 8), B_prod(3, 8)
         real(wp) :: fact, J_det, xi, eta
 
         ex = xe(1::2)
         ey = xe(2::2)
-        xi = 0.0_wp
-        eta = 0.0_wp
 
         ! Build strain-displacement matrix
 
-        call plane42rect_shape(ex, ey, xi, eta, n, B, J_det, J)
+        call plane42rect_shape(ex, ey, xi, eta, n, B_0, J_det, J, de, B_L, A, G)
 
+        B_prod = B_0 + 0.5_wp * B_L
         ! Compute element strain
-        estrain = matmul(B, de)
+        estrain = matmul(B_prod, de)
 
         ! Build constitutive matrix (plane stress)
         cmat = 0

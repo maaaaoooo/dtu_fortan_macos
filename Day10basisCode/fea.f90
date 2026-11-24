@@ -12,6 +12,90 @@ contains
 !
 !--------------------------------------------------------------------------------------------------
 !
+
+    subroutine Newton_Raphson
+    
+    use fedata
+    use plane42rectskewd
+
+    integer, dimension(mdim) :: edof
+    real(wp) :: delta_p(2*nn)
+    real(wp), parameter :: tol = 1.0e-10_wp
+    integer :: e, i, neqn
+    integer, parameter :: n_incr = 200, i_max = 500
+
+    D_0 = 0.0_wp
+    p_0 = 0.0_wp
+    delta_p = p/n_incr
+
+    do n = 1, n_incr
+
+        p_0 = p_0 + delta_p
+        D_i = D_0
+        do i = 0, i_max
+
+            ! Calling residual vector
+            call residual
+            ! Enforcing boundary conditions
+            call enforce_NR
+
+            ! Check if convergence is met
+            if (norm2(R_vec)<= tol * norm2(p)) exit    
+
+            ! Assembling stiffness matrix
+            call buildstiff
+            call enforce_NR
+
+
+        end do
+
+
+    end do
+
+    end subroutine Newton_Raphson
+
+!
+!--------------------------------------------------------------------------------------------------
+!
+
+
+    subroutine residual
+
+        use fedata
+        use plane42rectskewd
+
+        integer :: e, i, j
+        real(wp) :: R_vec(2*nn)
+
+        do e = 1, ne
+            nen = element(e)%numnode
+            ! Picking out the different edofs
+            do i = 1, nen
+                edof(2*i-1) = 2 * element(e)%ix(i) - 1
+                edof(2*i)   = 2 * element(e)%ix(i)
+            end do
+            young = mprop(element(e)%mat)%young
+            nu = mprop(element(e)%mat)%nu
+            thk = mprop(element(e)%mat)%thk
+            dens = mprop(element(e)%mat)%dens
+            call plane42rect_ke(xe, young, nu, thk, ke, dens, R_int)
+            ! Assemble the residual vector
+            do i = 1, 2*nen
+                do j = 1, 2*nen
+                    ! Translating the element wise intertal residual to global
+                    R_vec(edof(1:2*nen)) = R_vec(edof(1:2*nen)) + R_int(1:2*nen)
+                end do
+            end do
+
+            ! Calculating the global residual
+            R_vec(1:2*nen) = R_vec(1:2*nen) - p_0(1:2*nen)
+        end do
+
+    end subroutine residual
+
+!
+!--------------------------------------------------------------------------------------------------
+!
     subroutine initial
 
         !! This subroutine is mainly used to allocate vectors and matrices
@@ -38,7 +122,8 @@ contains
             bw = 0
             ! Looping through the different elements
             do e = 1, ne
-            nen = element(e)%numnode
+                ! Number of nodes in element
+                nen = element(e)%numnode
                 ! Picking out the different edofs
                 do i = 1, nen
                     edof(2*i-1) = 2 * element(e)%ix(i) - 1
@@ -372,10 +457,10 @@ contains
                 nu = mprop(element(e)%mat)%nu
                 thk = mprop(element(e)%mat)%thk
                 dens = mprop(element(e)%mat)%dens
-                call plane42rect_ke(xe, young, nu, thk, ke, dens, me)
+                call plane42rect_ke(xe, young, nu, thk, ke, dens, R_int)
                 ! Save element mass matrix to not calculate sitffnesses and masses
-                ! too many times
-                me_all(:,:,e) = me
+                ! too many times, commented out in this exercise
+                !me_all(:,:,e) = me
             end select
 
             ! Assemble into global matrix
@@ -492,6 +577,65 @@ contains
 !
 !--------------------------------------------------------------------------------------------------
 !
+    subroutine enforce_NR
+
+        !! This subroutine enforces the support boundary conditions
+
+        use fedata
+
+        integer :: i, idof, k, r
+        real(wp) :: penal
+
+        ! Correct for supports
+        if (.not. banded) then
+                if (.not. penalty) then
+                    do i = 1, nb
+                        idof = int(2*(bound(i,1)-1) + bound(i,2))
+                        R_vec(1:neqn) = R_vec(1:neqn) - kmat(1:neqn, idof) * bound(i, 3)
+                        R_vec(idof) = bound(i, 3)
+                        kmat(1:neqn, idof) = 0
+                        kmat(idof, 1:neqn) = 0
+                        kmat(idof, idof) = 1
+                end do
+            else
+                penal = penalty_fac*maxval(kmat)
+                do i = 1, nb
+                    idof = int(2*(bound(i,1)-1) + bound(i,2))
+                    kmat(idof, idof) = kmat(idof, idof) + penal
+                    R_vec(idof) = penal * bound(i, 3)
+                end do
+            end if
+        else
+            if (.not. penalty) then
+                do i = 1, nb
+                    idof = int(2*(bound(i,1)-1) + bound(i,2))
+
+                    do k = (idof-min(idof-1, bw-1)), (idof-1)
+                        R_vec(k) = R_vec(k) - kmat(idof+1-k, k) * bound(i, 3)
+                        kmat(idof+1-k, k) = 0
+                    end do
+                    
+                    do r = 2, min(bw, neqn - idof + 1)
+                        R_vec(idof+r-1) = R_vec(idof+r-1) - kmat(r, idof) * bound(i, 3)
+                        kmat(r, idof) = 0
+                    end do
+
+                    R_vec(idof) = bound(i, 3)
+                    kmat(1, idof) = 1
+                end do
+            else
+                penal = penalty_fac*maxval(kmat)
+                do i = 1, nb
+                    idof = int(2*(bound(i,1)-1) + bound(i,2))
+                    kmat(1, idof) = kmat(1, idof) + penal
+                    R_vec(idof) = penal * bound(i, 3)
+                end do
+            end if
+        end if
+    end subroutine enforce_NR
+!
+!--------------------------------------------------------------------------------------------------
+!
     subroutine recover
 
         !! This subroutine recovers the element stress, element strain,
@@ -505,7 +649,7 @@ contains
         integer :: edof(mdim)
         real(wp), dimension(mdim) :: xe, de
         real(wp), dimension(mdim, mdim) :: ke
-        real(wp) :: young, area
+        real(wp) :: young, area, R_int(2*nen)
 ! Hint for continuum elements:
         real(wp):: nu, dens, thk, sigma_vm, sigma_1, sigma_2, psi
         real(wp), dimension(3) :: estrain, estress
@@ -542,9 +686,13 @@ contains
                     nu = mprop(element(e)%mat)%nu
                     thk = mprop(element(e)%mat)%thk
                     dens = mprop(element(e)%mat)%dens
-                    call plane42rect_ke(xe, young, nu, thk, ke, dens, me)
-                    p(edof(1:2*nen)) = p(edof(1:2*nen)) + matmul(ke(1:2*nen,1:2*nen), de(1:2*nen))
-                    call plane42rect_ss(xe, de, young, nu, estress, estrain)
+                    ! Retrive ke and R_int
+                    call plane42rect_ke(xe, young, nu, thk, ke, dens, R_int)
+                    
+                    ! Compute the internal forces
+                    p(edof(1:2*nen)) = p(edof(1:2*nen)) + R_int(1:2*nen)
+
+                    ! Set strain and stress for the element
                     stress(e, 1:3) = estress
                     strain(e, 1:3) = estrain
 

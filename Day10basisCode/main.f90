@@ -22,6 +22,8 @@ program main
     case ('STATIC', 'static')
         call displ
         call compliance
+    case ('STATIC, static_NL')
+        call 
     case ('MODAL', 'modal')
     ! If dynamic -> the eigenvalues are calculated
         call eigen
